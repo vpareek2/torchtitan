@@ -9,6 +9,7 @@ from torchtitan.components.loss import ChunkedCELoss
 from torchtitan.components.lr_scheduler import LRSchedulersContainer
 from torchtitan.components.metrics import MetricsProcessor
 from torchtitan.components.optimizer import OptimizersContainer, ParamGroupConfig
+from torchtitan.components.validate import Validator
 from torchtitan.config import (
     ActivationCheckpointConfig,
     ParallelismConfig,
@@ -128,6 +129,39 @@ def qwen3_debugmodel_flex_flash() -> Trainer.Config:
         ),
         activation_checkpoint=ActivationCheckpointConfig(
             mode="selective",
+        ),
+    )
+
+
+def qwen3_10m() -> Trainer.Config:
+    return Trainer.Config(
+        loss=ChunkedCELoss.Config(),
+        hf_assets_path="./tests/assets/tokenizer",
+        metrics=MetricsProcessor.Config(log_freq=1),
+        model_spec=model_registry("10M", attn_backend="sdpa"),
+        dataloader=HuggingFaceTextDataLoader.Config(dataset="c4_test"),
+        optimizer=OptimizersContainer.Config(lr=8e-4),
+        lr_scheduler=LRSchedulersContainer.Config(
+            warmup_steps=2,
+            decay_ratio=0.8,
+            decay_type="linear",
+            min_lr_factor=0.0,
+        ),
+        training=TrainingConfig(
+            local_batch_size=8,
+            seq_len=1024,
+            steps=10,
+        ),
+        checkpoint=CheckpointManager.Config(
+            interval=10,
+            last_save_model_only=False,
+        ),
+        activation_checkpoint=ActivationCheckpointConfig(
+            mode="selective",
+        ),
+        validator=Validator.Config(
+            freq=5,
+            steps=10,
         ),
     )
 
