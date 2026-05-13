@@ -3,13 +3,17 @@
 name = "torchtitan"
 description = "A PyTorch native platform for training generative AI models"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 license = {file = "LICENSE"}
 authors = [
     { name = "PyTorch Team", email = "packages@pytorch.org" },
 ]
 keywords = ["pytorch", "training", "llm"]
 dependencies = [
+    # PyTorch nightly is required for FSDP2 partial-forward support used by
+    # ChunkedCELoss. Stable torch 2.12 fails the llama3_debugmodel smoke on GB10.
+    "torch>=2.13.0.dev20260513",
+
     # Stateful Dataloader
     "torchdata>=0.8.0",
 
@@ -40,7 +44,24 @@ dev = [
     "pytest-cov",
     "expecttest", # test_tokenizer
     "pyrefly==0.45.1",
+    "transformers",
+    "torchvision>=0.27.0.dev20260513",
 ]
+
+[tool.uv]
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
+
+[[tool.uv.index]]
+name = "pytorch-nightly-cu130"
+url = "https://download.pytorch.org/whl/nightly/cu130"
+
+[tool.uv.sources]
+torch = { index = "pytorch-nightly-cu130" }
+torchdata = { index = "pytorch-nightly-cu130" }
+torchvision = { index = "pytorch-nightly-cu130" }
+triton = { index = "pytorch-nightly-cu130" }
 
 [tool.setuptools.dynamic]
 version = {file = "assets/version.txt"}
