@@ -47,6 +47,9 @@ dev = [
     "transformers",
     "torchvision>=0.27.0.dev20260513",
 ]
+linear-attention = [
+    "flash-linear-attention>=0.5.0",
+]
 
 [tool.uv]
 environments = [
