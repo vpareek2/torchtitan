@@ -256,11 +256,14 @@ def _debugmodel_fused_qkv(attn_backend: str) -> Qwen3Model.Config:
     )
 
 
-def _10m(attn_backend: str) -> Qwen3Model.Config:
+def _make_10m_config(
+    *,
+    attn_backend: str,
+    vocab_size: int,
+) -> Qwen3Model.Config:
     dim = 256
     head_dim = 128
     n_layers = 8
-    vocab_size = 2048
     return Qwen3Model.Config(
         vocab_size=vocab_size,
         dim=dim,
@@ -292,6 +295,14 @@ def _10m(attn_backend: str) -> Qwen3Model.Config:
             attn_backend=attn_backend,
         ),
     )
+
+
+def _10m(attn_backend: str) -> Qwen3Model.Config:
+    return _make_10m_config(attn_backend=attn_backend, vocab_size=2048)
+
+
+def _10m_climbmix(attn_backend: str) -> Qwen3Model.Config:
+    return _make_10m_config(attn_backend=attn_backend, vocab_size=50257)
 
 
 def _0_6b(attn_backend: str) -> Qwen3Model.Config:
@@ -643,6 +654,7 @@ qwen3_configs = {
     "debugmodel": _debugmodel,
     "debugmodel_fused_qkv": _debugmodel_fused_qkv,
     "10M": _10m,
+    "10M-climbmix": _10m_climbmix,
     "0.6B": _0_6b,
     "1.7B": _1_7b,
     "4B": _4b,

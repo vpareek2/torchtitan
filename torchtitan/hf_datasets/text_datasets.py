@@ -7,6 +7,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import Annotated, Any, cast
 
 import torch
@@ -33,6 +34,56 @@ def _process_c4_text(sample: dict[str, Any]) -> str:
     return sample["text"]
 
 
+def _load_climbmix_split(dataset_path: str, split: str):
+    """Load pre-tokenized Nemotron-ClimbMix data from HF or a local JSONL subset."""
+    path = Path(dataset_path)
+    if path.is_dir():
+        split_path = path / f"{split}.jsonl"
+        if not split_path.exists():
+            raise FileNotFoundError(
+                f"Expected local ClimbMix split at {split_path}. "
+                "Run scripts/download_climbmix_subset.py first."
+            )
+        return load_dataset(
+            "json",
+            data_files=str(split_path),
+            split="train",
+            streaming=True,
+        )
+    if path.is_file():
+        return load_dataset(
+            "json",
+            data_files=str(path),
+            split="train",
+            streaming=True,
+        )
+    return load_dataset(dataset_path, name="default", split="train", streaming=True)
+
+
+def _load_climbmix_dataset(dataset_path: str):
+    """Load pre-tokenized Nemotron-ClimbMix training data."""
+    return _load_climbmix_split(dataset_path, "train")
+
+
+def _load_climbmix_validation_dataset(dataset_path: str):
+    """Load a deterministic held-out ClimbMix validation stream.
+
+    Nemotron-ClimbMix currently exposes a train split only, so the initial
+    research configs reserve a later row range for validation.
+    """
+    path = Path(dataset_path)
+    if path.exists():
+        return _load_climbmix_split(dataset_path, "validation")
+    return load_dataset(
+        dataset_path, name="default", split="train", streaming=True
+    ).skip(100_000)
+
+
+def _process_climbmix_tokens(sample: dict[str, Any]) -> list[int]:
+    """Process pre-tokenized ClimbMix samples."""
+    return list(sample["tokens"])
+
+
 # Add your dataset here - more information at docs/datasets.md
 DATASETS = {
     "c4": DatasetConfig(
@@ -49,6 +100,16 @@ DATASETS = {
         path="allenai/c4",
         loader=partial(_load_c4_dataset, split="validation"),
         sample_processor=_process_c4_text,
+    ),
+    "climbmix": DatasetConfig(
+        path="nvidia/Nemotron-ClimbMix",
+        loader=_load_climbmix_dataset,
+        sample_processor=_process_climbmix_tokens,
+    ),
+    "climbmix_validation": DatasetConfig(
+        path="nvidia/Nemotron-ClimbMix",
+        loader=_load_climbmix_validation_dataset,
+        sample_processor=_process_climbmix_tokens,
     ),
 }
 
@@ -130,10 +191,13 @@ class HuggingFaceTextDataset(IterableDataset, Stateful):
         while True:
             for sample in self._get_data_iter():
                 # Use the dataset-specific text processor
-                sample_text = self._text_processor(sample)
-                sample_tokens = self._tokenizer.encode(
-                    sample_text, add_bos=True, add_eos=True
-                )
+                processed_sample = self._text_processor(sample)
+                if isinstance(processed_sample, str):
+                    sample_tokens = self._tokenizer.encode(
+                        processed_sample, add_bos=True, add_eos=True
+                    )
+                else:
+                    sample_tokens = processed_sample
 
                 self._inputs_buffer.extend(sample_tokens)
                 # Per-document positions reset at document boundaries,

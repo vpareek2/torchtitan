@@ -23,6 +23,8 @@ from torchtitan.trainer import Trainer
 
 from . import model_registry
 
+_CLIMBMIX_50M_PATH = "./data/climbmix_50m"
+
 
 def qwen3_debugmodel() -> Trainer.Config:
     return Trainer.Config(
@@ -162,6 +164,48 @@ def qwen3_10m() -> Trainer.Config:
         validator=Validator.Config(
             freq=5,
             steps=10,
+        ),
+    )
+
+
+def qwen3_10m_climbmix_dense() -> Trainer.Config:
+    return Trainer.Config(
+        loss=ChunkedCELoss.Config(),
+        hf_assets_path="./assets/hf/gpt2",
+        metrics=MetricsProcessor.Config(log_freq=1),
+        model_spec=model_registry("10M-climbmix", attn_backend="sdpa"),
+        dataloader=HuggingFaceTextDataLoader.Config(
+            dataset="climbmix",
+            dataset_path=_CLIMBMIX_50M_PATH,
+        ),
+        optimizer=OptimizersContainer.Config(lr=8e-4),
+        lr_scheduler=LRSchedulersContainer.Config(
+            warmup_steps=122,
+            decay_ratio=1.0,
+            decay_type="cosine",
+            min_lr_factor=0.1,
+        ),
+        training=TrainingConfig(
+            local_batch_size=8,
+            seq_len=1024,
+            steps=6104,
+        ),
+        checkpoint=CheckpointManager.Config(
+            interval=610,
+            last_save_model_only=False,
+        ),
+        activation_checkpoint=ActivationCheckpointConfig(
+            mode="selective",
+        ),
+        validator=Validator.Config(
+            enable=True,
+            freq=610,
+            steps=128,
+            dataloader=HuggingFaceTextDataLoader.Config(
+                dataset="climbmix_validation",
+                dataset_path=_CLIMBMIX_50M_PATH,
+                infinite=False,
+            ),
         ),
     )
 

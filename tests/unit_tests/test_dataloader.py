@@ -6,10 +6,13 @@
 
 import unittest
 
+from datasets import Dataset
 from torch.utils.data import IterableDataset
 
 from torchtitan.components.dataloader import ParallelAwareDataloader
 from torchtitan.components.tokenizer import BaseTokenizer
+from torchtitan.hf_datasets import DatasetConfig
+from torchtitan.hf_datasets import text_datasets
 from torchtitan.hf_datasets.text_datasets import HuggingFaceTextDataLoader
 
 
@@ -178,6 +181,42 @@ class TestParallelAwareDataloader(unittest.TestCase):
                     if tok == tokenizer.bos_id and i > 0:
                         # BOS token should have position 0
                         self.assertEqual(pos.item(), 0)
+
+    def test_pretokenized_dataset_uses_tokens_directly(self):
+        tokenizer = DummyTokenizer()
+        original_datasets = text_datasets.DATASETS.copy()
+        text_datasets.DATASETS["token_test"] = DatasetConfig(
+            path="unused",
+            loader=lambda _: Dataset.from_list(
+                [
+                    {"tokens": [10, 11, 12, 13, 14, 15]},
+                ]
+            ),
+            sample_processor=lambda sample: list(sample["tokens"]),
+        )
+
+        try:
+            dataloader = HuggingFaceTextDataLoader(
+                HuggingFaceTextDataLoader.Config(
+                    dataset="token_test",
+                    num_workers=0,
+                    infinite=False,
+                ),
+                dp_world_size=1,
+                dp_rank=0,
+                tokenizer=tokenizer,
+                seq_len=4,
+                local_batch_size=1,
+            )
+
+            input_dict, labels = next(iter(dataloader))
+
+            self.assertEqual(input_dict["input"].tolist(), [[10, 11, 12, 13]])
+            self.assertEqual(labels.tolist(), [[11, 12, 13, 14]])
+            self.assertEqual(input_dict["positions"].tolist(), [[0, 1, 2, 3]])
+        finally:
+            text_datasets.DATASETS.clear()
+            text_datasets.DATASETS.update(original_datasets)
 
 
 if __name__ == "__main__":

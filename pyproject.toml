@@ -50,6 +50,11 @@ dev = [
 linear-attention = [
     "flash-linear-attention>=0.5.0",
 ]
+mamba3 = [
+    # Mamba3 is source-only in the official state-spaces/mamba repo. The
+    # setup script supplies the required no-build-isolation/source-build flags.
+    "mamba-ssm @ git+https://github.com/state-spaces/mamba.git@a14b1dff0454a3bc27d9eb31355dc01e4b2490ec",
+]
 
 [tool.uv]
 environments = [
